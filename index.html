@@ -1,0 +1,560 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestión de Taller</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Órdenes</h1>
+        </div>
+
+        <nav class="main-nav" aria-label="Menu principal">
+          <button type="button" class="nav-btn active" data-view="orders">Órdenes</button>
+          <button type="button" class="nav-btn" data-view="agenda">Agenda</button>
+          <button type="button" class="nav-btn" data-view="stock">Stock</button>
+          <button type="button" class="nav-btn" data-view="clients">Clientes</button>
+          <button type="button" class="nav-btn" data-view="vehicles">Vehículos</button>
+        </nav>
+
+        <div class="topbar-actions">
+          <div class="theme-picker" role="group" aria-label="Tema de color">
+            <button class="theme-dot theme-dot-light" type="button" data-theme-choice="light" aria-label="Tema claro" title="Tema claro"></button>
+            <button class="theme-dot theme-dot-dark" type="button" data-theme-choice="dark" aria-label="Modo oscuro" title="Modo oscuro"></button>
+            <button class="theme-dot theme-dot-forest" type="button" data-theme-choice="forest" aria-label="Tema bosque" title="Tema bosque"></button>
+            <button class="theme-dot theme-dot-clay" type="button" data-theme-choice="clay" aria-label="Tema arcilla" title="Tema arcilla"></button>
+          </div>
+          <button class="primary-btn" id="newOrderBtn" type="button">+ Nueva orden</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="summaryBar" class="summary-bar">
+          <button type="button" class="summary-card active" data-order-filter="all">
+            <span>Todas</span>
+            <strong id="totalOrders">0</strong>
+          </button>
+          <button type="button" class="summary-card accent-blue" data-order-filter="Nueva">
+            <span>Nueva</span>
+            <strong id="newOrders">0</strong>
+          </button>
+          <button type="button" class="summary-card accent-blue" data-order-filter="En revisión">
+            <span>En revisión</span>
+            <strong id="reviewOrders">0</strong>
+          </button>
+          <button type="button" class="summary-card accent-blue" data-order-filter="Espera repuestos">
+            <span>Espera repuestos</span>
+            <strong id="waitingPartsOrders">0</strong>
+          </button>
+          <button type="button" class="summary-card accent-blue" data-order-filter="En reparación">
+            <span>En reparación</span>
+            <strong id="repairOrders">0</strong>
+          </button>
+          <button type="button" class="summary-card accent-green" data-order-filter="Terminada">
+            <span>Terminada</span>
+            <strong id="finishedOrders">0</strong>
+          </button>
+          <button type="button" class="summary-card accent-green" data-order-filter="Entregada">
+            <span>Entregada</span>
+            <strong id="deliveredOrders">0</strong>
+          </button>
+        </section>
+
+        <section id="ordersView" class="view-panel active">
+          <div class="orders-panel">
+            <div class="panel-header">
+              <h2>Órdenes de trabajo</h2>
+            </div>
+            <div id="ordersList" class="orders-list"></div>
+          </div>
+        </section>
+
+        <section id="agendaView" class="view-panel hidden-view">
+          <div class="panel agenda-panel">
+            <div class="panel-header agenda-header">
+              <div>
+                <h2>Agenda semanal</h2>
+                <p class="muted-subtitle">Semana actual · disponibilidad cada 15 minutos</p>
+              </div>
+              <div class="agenda-actions">
+                <button type="button" class="secondary-btn" data-week-change="prev">Semana anterior</button>
+                <button type="button" class="secondary-btn" data-week-change="next">Semana siguiente</button>
+                <button type="button" class="primary-btn" id="newAppointmentBtn">+ Nuevo turno</button>
+              </div>
+            </div>
+
+            <div class="agenda-toolbar">
+              <span id="agendaWeekLabel">Semana actual</span>
+            </div>
+
+            <div id="agendaGrid" class="agenda-grid"></div>
+          </div>
+        </section>
+
+        <section id="stockView" class="view-panel hidden-view">
+          <div class="panel stock-panel">
+            <div class="stock-panel-header">
+              <div class="field-group stock-search-box">
+                <label for="stockSearchInput">Buscar por código</label>
+                <input id="stockSearchInput" type="text" placeholder="Ej: 123456789" autocomplete="off" />
+              </div>
+
+              <div class="stock-total-box" aria-live="polite">
+                <span>Importe total</span>
+                <strong id="stockTotalValue">$0</strong>
+              </div>
+            </div>
+
+            <div id="stockQuickAddModal" class="stock-quick-add hidden" aria-hidden="true">
+              <div class="stock-quick-add-panel">
+                <div class="stock-quick-add-header">
+                  <h3 id="stockQuickAddTitle">Agregar stock</h3>
+                  <button type="button" class="icon-btn" data-close-stock-add aria-label="Cerrar">×</button>
+                </div>
+
+                <form id="stockQuickAddForm">
+                  <input type="hidden" id="stockQuickAddId" />
+
+                  <div class="field-group">
+                    <label for="stockQuickAddQty">Cantidad a sumar</label>
+                    <input id="stockQuickAddQty" type="number" min="1" value="1" required />
+                  </div>
+
+                  <div class="field-group">
+                    <label for="stockQuickAddPrice">Precio nuevo (opcional)</label>
+                    <input id="stockQuickAddPrice" type="number" min="0" step="1" placeholder="Deja vacío para conservar el precio actual" />
+                  </div>
+
+                  <div class="stock-quick-add-actions">
+                    <button type="button" class="secondary-btn" data-close-stock-add>Cancelar</button>
+                    <button class="primary-btn" type="submit">Guardar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div class="stock-table-wrap">
+              <table class="stock-table">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>Cilindrada</th>
+                    <th>Pieza</th>
+                    <th>Cantidad</th>
+                    <th>Precio</th>
+                    <th>Acción</th>
+                  </tr>
+                  <tr class="stock-filter-row">
+                    <th><input class="stock-filter-input" data-filter="code" type="text" placeholder="Filtrar código" /></th>
+                    <th><input class="stock-filter-input" data-filter="brand" type="text" placeholder="Filtrar marca" /></th>
+                    <th><input class="stock-filter-input" data-filter="model" type="text" placeholder="Filtrar modelo" /></th>
+                    <th><input class="stock-filter-input" data-filter="displacement" type="text" placeholder="Filtrar cilindrada" /></th>
+                    <th><input class="stock-filter-input" data-filter="part" type="text" placeholder="Filtrar pieza" /></th>
+                    <th><input class="stock-filter-input" data-filter="quantity" type="text" placeholder="Cant." /></th>
+                    <th><input class="stock-filter-input" data-filter="price" type="text" placeholder="Precio" /></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="stockTableBody"></tbody>
+              </table>
+            </div>
+
+            <form id="stockForm" class="stock-form">
+              <input type="hidden" id="stockEditId" />
+
+              <div class="field-group">
+                <label for="stockCode">Código</label>
+                <input id="stockCode" type="text" placeholder="Código o código de barras" autocomplete="off" />
+              </div>
+              <div class="field-group">
+                <label for="stockBrand">Marca</label>
+                <input id="stockBrand" type="text" placeholder="Honda" required />
+              </div>
+              <div class="field-group">
+                <label for="stockModel">Modelo</label>
+                <input id="stockModel" type="text" placeholder="CB 250" required />
+              </div>
+              <div class="field-group">
+                <label for="stockDisplacement">Cilindrada</label>
+                <input id="stockDisplacement" type="text" placeholder="250cc" />
+              </div>
+              <div class="field-group">
+                <label for="stockPart">Pieza</label>
+                <input id="stockPart" type="text" placeholder="Pastillas delanteras" required />
+              </div>
+              <div class="field-group">
+                <label for="stockQuantity">Cantidad</label>
+                <input id="stockQuantity" type="number" min="0" value="1" required />
+              </div>
+              <div class="field-group">
+                <label for="stockPrice">Precio</label>
+                <input id="stockPrice" type="number" min="0" step="1" value="0" required />
+              </div>
+              <div class="stock-form-actions">
+                <button id="stockSubmitBtn" class="primary-btn" type="submit">Agregar stock</button>
+                <button id="stockCancelEditBtn" class="secondary-btn hidden" type="button">Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section id="clientsView" class="view-panel hidden-view">
+          <div class="panel stock-panel">
+            <div class="stock-panel-header">
+              <div class="field-group stock-search-box">
+                <label for="clientSearchInput">Buscar cliente</label>
+                <input id="clientSearchInput" type="text" placeholder="Nombre, DNI o RUT" autocomplete="off" />
+              </div>
+
+              <div class="stock-total-box" aria-live="polite">
+                <span>Clientes</span>
+                <strong id="clientsTotalValue">0</strong>
+              </div>
+            </div>
+
+            <div class="stock-table-wrap">
+              <table class="stock-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>DNI</th>
+                    <th>RUT</th>
+                    <th>Teléfono</th>
+                    <th>Email</th>
+                    <th>Acción</th>
+                  </tr>
+                  <tr class="stock-filter-row">
+                    <th><input class="client-filter-input" data-filter="name" type="text" placeholder="Filtrar nombre" /></th>
+                    <th><input class="client-filter-input" data-filter="lastName" type="text" placeholder="Filtrar apellido" /></th>
+                    <th><input class="client-filter-input" data-filter="dni" type="text" placeholder="Filtrar DNI" /></th>
+                    <th><input class="client-filter-input" data-filter="rut" type="text" placeholder="Filtrar RUT" /></th>
+                    <th><input class="client-filter-input" data-filter="phone" type="text" placeholder="Filtrar teléfono" /></th>
+                    <th><input class="client-filter-input" data-filter="email" type="text" placeholder="Filtrar email" /></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="clientsTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="vehiclesView" class="view-panel hidden-view">
+          <div class="panel stock-panel">
+            <div class="stock-panel-header">
+              <div class="field-group stock-search-box">
+                <label for="vehicleSearchInput">Buscar vehículo</label>
+                <input id="vehicleSearchInput" type="text" placeholder="Marca, patente o VIN" autocomplete="off" />
+              </div>
+
+              <div class="stock-total-box" aria-live="polite">
+                <span>Vehículos</span>
+                <strong id="vehiclesTotalValue">0</strong>
+              </div>
+            </div>
+
+            <div class="stock-table-wrap">
+              <table class="stock-table">
+                <thead>
+                  <tr>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>Año</th>
+                    <th>Patente</th>
+                    <th>VIN</th>
+                    <th>Combustible</th>
+                    <th>Transmisión</th>
+                    <th>Acción</th>
+                  </tr>
+                  <tr class="stock-filter-row">
+                    <th><input class="vehicle-filter-input" data-filter="brand" type="text" placeholder="Marca" /></th>
+                    <th><input class="vehicle-filter-input" data-filter="model" type="text" placeholder="Modelo" /></th>
+                    <th><input class="vehicle-filter-input" data-filter="year" type="text" placeholder="Año" /></th>
+                    <th><input class="vehicle-filter-input" data-filter="plate" type="text" placeholder="Patente" /></th>
+                    <th><input class="vehicle-filter-input" data-filter="vin" type="text" placeholder="VIN" /></th>
+                    <th><input class="vehicle-filter-input" data-filter="fuel" type="text" placeholder="Combustible" /></th>
+                    <th><input class="vehicle-filter-input" data-filter="transmission" type="text" placeholder="Transmisión" /></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="vehiclesTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="appointmentModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-panel small-modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="appointmentModalTitle">Nuevo turno</h2>
+          </div>
+          <button id="closeAppointmentModalBtn" class="icon-btn" type="button" aria-label="Cerrar">×</button>
+        </div>
+
+        <form id="appointmentForm">
+          <input type="hidden" id="appointmentId" />
+
+          <div class="form-grid two-columns">
+            <div class="field-group">
+              <label for="appointmentDate">Fecha</label>
+              <input id="appointmentDate" type="date" required />
+            </div>
+            <div class="field-group">
+              <label for="appointmentType">Tipo</label>
+              <select id="appointmentType">
+                <option value="mantenimiento">Mantenimiento</option>
+                <option value="revision">Revisión</option>
+                <option value="reparacion">Reparación</option>
+                <option value="entrega">Entrega</option>
+                <option value="servicio">Servicio</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="appointmentTime">Hora</label>
+              <input id="appointmentTime" type="time" step="900" required />
+            </div>
+            <div class="field-group">
+              <label for="appointmentDuration">Duración</label>
+              <select id="appointmentDuration">
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60" selected>60 min</option>
+                <option value="90">90 min</option>
+                <option value="120">120 min</option>
+              </select>
+            </div>
+            <div class="field-group full-width">
+              <label for="appointmentClient">Cliente</label>
+              <input id="appointmentClient" type="text" placeholder="Nombre del cliente" required />
+            </div>
+            <div class="field-group full-width">
+              <label for="appointmentVehicle">Vehículo</label>
+              <input id="appointmentVehicle" type="text" placeholder="Marca y modelo / patente" required />
+            </div>
+            <div class="field-group full-width">
+              <label for="appointmentNotes">Notas</label>
+              <textarea id="appointmentNotes" rows="3" placeholder="Detalles del servicio o requisitos"></textarea>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="secondary-btn" id="cancelAppointmentBtn" type="button">Cancelar</button>
+            <button class="primary-btn" type="submit">Guardar turno</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="orderModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <h2 id="modalTitle">Nueva orden</h2>
+          </div>
+          <button id="closeModalBtn" class="icon-btn" type="button" aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="modal-summary" id="orderSummaryBar">
+          <div class="summary-pill">
+            <span>Vehículo</span>
+            <strong id="summaryVehicle">-</strong>
+          </div>
+          <div class="summary-pill">
+            <span>Cliente</span>
+            <strong id="summaryClient">-</strong>
+          </div>
+        </div>
+
+        <form id="orderForm">
+          <input type="hidden" id="orderId" />
+
+          <div class="form-grid">
+            <div class="field-group">
+              <label for="orderNumber">Número</label>
+              <input id="orderNumber" type="number" min="1" readonly />
+            </div>
+            <div class="field-group">
+              <label for="orderStatus">Estado</label>
+              <select id="orderStatus">
+                <option value="Nueva">Nueva</option>
+                <option value="En revisión">En revisión</option>
+                <option value="Espera repuestos">Espera repuestos</option>
+                <option value="En reparación">En reparación</option>
+                <option value="Terminada">Terminada</option>
+                <option value="Entregada">Entregada</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h3>Datos del vehículo</h3>
+            <div class="lookup-bar">
+              <div class="field-group">
+                <label for="vehicleSearch">Buscar por chasis</label>
+                <input id="vehicleSearch" type="text" placeholder="VIN o número de chasis" />
+              </div>
+              <div class="lookup-actions">
+                <button id="searchVehicleBtn" class="secondary-btn" type="button">Buscar vehículo</button>
+              </div>
+            </div>
+            <div class="form-grid two-columns">
+              <div class="field-group">
+                <label for="vehicleBrand">Marca</label>
+                <input id="vehicleBrand" type="text" placeholder="Honda" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleModel">Modelo</label>
+                <input id="vehicleModel" type="text" placeholder="CB 250 R" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleYear">Año</label>
+                <input id="vehicleYear" type="number" min="1900" max="2100" placeholder="2022" />
+              </div>
+              <div class="field-group">
+                <label for="vehiclePlate">Patente</label>
+                <input id="vehiclePlate" type="text" placeholder="AB-1234" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleColor">Color</label>
+                <input id="vehicleColor" type="text" placeholder="Negro" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleKm">Kilometraje</label>
+                <input id="vehicleKm" type="number" min="0" placeholder="12000" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleEngine">Motor</label>
+                <input id="vehicleEngine" type="text" placeholder="250cc" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleVin">VIN / Chasis</label>
+                <input id="vehicleVin" type="text" placeholder="VIN o chasis" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleFuel">Combustible</label>
+                <input id="vehicleFuel" type="text" placeholder="Gasolina" />
+              </div>
+              <div class="field-group">
+                <label for="vehicleTransmission">Transmisión</label>
+                <input id="vehicleTransmission" type="text" placeholder="Manual" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h3>Datos del cliente</h3>
+            <div class="lookup-bar">
+              <div class="field-group">
+                <label for="clientSearch">Buscar por DNI</label>
+                <input id="clientSearch" type="text" placeholder="Número de DNI" />
+              </div>
+              <div class="lookup-actions">
+                <button id="searchClientBtn" class="secondary-btn" type="button">Buscar cliente</button>
+              </div>
+            </div>
+            <div class="form-grid two-columns">
+              <div class="field-group">
+                <label for="clientName">Nombre</label>
+                <input id="clientName" type="text" placeholder="Ej: Juan Pérez" />
+              </div>
+              <div class="field-group">
+                <label for="clientLastName">Apellido</label>
+                <input id="clientLastName" type="text" placeholder="Ej: Muñoz" />
+              </div>
+              <div class="field-group">
+                <label for="clientDni">DNI</label>
+                <input id="clientDni" type="text" placeholder="12345678" />
+              </div>
+              <div class="field-group">
+                <label for="clientRut">RUT</label>
+                <input id="clientRut" type="text" placeholder="12.345.678-9" />
+              </div>
+              <div class="field-group">
+                <label for="clientPhone">Teléfono</label>
+                <input id="clientPhone" type="tel" placeholder="+56 9 1234 5678" />
+              </div>
+              <div class="field-group">
+                <label for="clientEmail">Email</label>
+                <input id="clientEmail" type="email" placeholder="cliente@email.com" />
+              </div>
+              <div class="field-group full-width">
+                <label for="clientAddress">Dirección</label>
+                <input id="clientAddress" type="text" placeholder="Calle, número, comuna" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h3>Descripción de la falla</h3>
+            <div class="form-grid two-columns">
+              <div class="field-group full-width">
+                <label for="clientWords">Palabras del cliente</label>
+                <textarea id="clientWords" rows="4" placeholder="Ej: La moto vibra al acelerar y se calienta..."></textarea>
+              </div>
+              <div class="field-group full-width">
+                <label for="advisorWords">Palabras del asesor de servicio</label>
+                <textarea id="advisorWords" rows="4" placeholder="Ej: Revisión de frenos, chequeo de motor y prueba de funcionamiento..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="subsection-header">
+              <h3>Mano de obra y repuestos</h3>
+              <button id="addItemBtn" class="secondary-btn" type="button">+ Agregar ítem</button>
+            </div>
+
+            <div class="stock-selector-box">
+              <div class="field-group">
+                <label for="stockSelector">Repuesto del stock</label>
+                <select id="stockSelector"></select>
+              </div>
+              <div class="field-group small-field">
+                <label for="stockQuantitySelector">Cantidad</label>
+                <input id="stockQuantitySelector" type="number" min="1" value="1" />
+              </div>
+              <div class="stock-selector-actions">
+                <button id="addStockItemBtn" class="secondary-btn" type="button">Agregar desde stock</button>
+              </div>
+            </div>
+
+            <div id="itemsContainer" class="items-container"></div>
+            <div class="totals-box">
+              <div>
+                <span>Mano de obra</span>
+                <strong id="laborTotal">$0</strong>
+              </div>
+              <div>
+                <span>Repuestos</span>
+                <strong id="partsTotal">$0</strong>
+              </div>
+              <div>
+                <span>Total</span>
+                <strong id="grandTotal">$0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="secondary-btn" id="cancelOrderBtn" type="button">Cancelar</button>
+            <button class="primary-btn" type="submit">Guardar orden</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
