@@ -1,20 +1,10 @@
 ﻿const STORAGE_KEY = 'taller_ordenes_v1';
 const STOCK_KEY = 'taller_stock_v1';
 const THEME_KEY = 'taller_theme_v1';
-const AGENDA_KEY = 'taller_agenda_v1';
-
-const APPOINTMENT_TYPES = {
-  mantenimiento: { label: 'Mantenimiento', color: '#2563eb', soft: '#dbeafe' },
-  revision: { label: 'Revisión', color: '#7c3aed', soft: '#ede9fe' },
-  reparacion: { label: 'Reparación', color: '#dc2626', soft: '#fee2e2' },
-  entrega: { label: 'Entrega', color: '#16a34a', soft: '#dcfce7' },
-  servicio: { label: 'Servicio', color: '#f59e0b', soft: '#fef3c7' }
-};
 
 const state = {
   orders: loadOrders(),
   stock: loadStock(),
-  appointments: loadAppointments(),
   stockSearch: '',
   stockFilters: {
     code: '',
@@ -46,8 +36,7 @@ const state = {
   },
   activeOrderId: null,
   currentView: 'orders',
-  orderFilter: 'all',
-  agendaWeekStart: getStartOfWeek(new Date())
+  orderFilter: 'all'
 };
 
 const money = (value = 0) => {
@@ -72,62 +61,11 @@ const generateId = () => {
   return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-function getStartOfWeek(date = new Date()) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  const day = copy.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + diff);
-  return copy;
-}
-
-function addDays(date, amount) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + amount);
-  return copy;
-}
-
 function formatDateKey(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function formatDisplayDate(date) {
-  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' }).format(date);
-}
-
-function formatLongDate(date) {
-  return new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
-}
-
-function timeToMinutes(timeValue = '09:00') {
-  const [hours, minutes] = String(timeValue).split(':').map(Number);
-  return (Number(hours) || 0) * 60 + (Number(minutes) || 0);
-}
-
-function getAgendaSlots() {
-  const times = [];
-  const startMinutes = 8 * 60;
-  const endMinutes = 18 * 60;
-
-  for (let totalMinutes = startMinutes; totalMinutes < endMinutes; totalMinutes += 15) {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    const label = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    times.push({ value: label, minutes: totalMinutes, label });
-  }
-
-  return times;
-}
-
-function getWeekDates(startDate) {
-  const dates = [];
-  for (let index = 0; index < 7; index += 1) {
-    dates.push(addDays(startDate, index));
-  }
-  return dates;
 }
 
 function loadOrders() {
@@ -144,36 +82,6 @@ function loadOrders() {
 
 function saveOrders() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.orders));
-}
-
-function normalizeAppointment(item = {}) {
-  return {
-    id: item.id || generateId(),
-    date: item.date || new Date().toISOString().slice(0, 10),
-    time: item.time || '09:00',
-    duration: Number(item.duration || 60),
-    type: APPOINTMENT_TYPES[item.type] ? item.type : 'servicio',
-    client: item.client || '',
-    vehicle: item.vehicle || '',
-    notes: item.notes || '',
-    color: item.color || APPOINTMENT_TYPES[item.type]?.color || APPOINTMENT_TYPES.servicio.color
-  };
-}
-
-function loadAppointments() {
-  try {
-    const raw = localStorage.getItem(AGENDA_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(normalizeAppointment) : [];
-  } catch (error) {
-    console.error('No se pudieron leer los turnos guardados:', error);
-    return [];
-  }
-}
-
-function saveAppointments() {
-  localStorage.setItem(AGENDA_KEY, JSON.stringify(state.appointments.map(normalizeAppointment)));
 }
 
 function normalizeStockItem(item = {}) {
@@ -613,6 +521,7 @@ function saveOrder(event) {
 
   saveOrders();
   renderOrders();
+  renderAnalytics();
   renderClientsTable();
   renderVehiclesTable();
   closeModal();
@@ -628,6 +537,7 @@ function deleteOrder(orderId) {
   state.orders = state.orders.filter((item) => item.id !== orderId);
   saveOrders();
   renderOrders();
+  renderAnalytics();
   renderClientsTable();
   renderVehiclesTable();
 }
@@ -1118,6 +1028,48 @@ function clearStockFilters() {
   });
 }
 
+function renderAnalytics() {
+  const totalOrders = state.orders.length;
+  const completedOrders = state.orders.filter((order) => ['Terminada', 'Entregada'].includes(order.status)).length;
+  const openOrders = totalOrders - completedOrders;
+  const revenue = state.orders.reduce((sum, order) => sum + getOrderTotal(order), 0);
+  const average = totalOrders ? revenue / totalOrders : 0;
+  const clients = getUniqueClients().length;
+  const vehicles = getUniqueVehicles().length;
+  const stockValue = state.stock.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0), 0);
+  const lowStock = state.stock.filter((item) => Number(item.quantity || 0) <= 2).length;
+  const statuses = ['Nueva', 'En revisión', 'Espera repuestos', 'En reparación', 'Terminada', 'Entregada'];
+  const statusColors = ['blue', 'violet', 'orange', 'red', 'green', 'teal'];
+  const statusList = document.getElementById('analyticsStatusList');
+  const maxStatus = Math.max(...statuses.map((status) => state.orders.filter((order) => order.status === status).length), 1);
+  statusList.innerHTML = statuses.map((status, index) => {
+    const count = state.orders.filter((order) => order.status === status).length;
+    return `<div class="analytics-status-row"><span class="status-dot ${statusColors[index]}"></span><span>${status}</span><strong>${count}</strong><i><b class="bar-${statusColors[index]}" style="width:${(count / maxStatus) * 100}%"></b></i></div>`;
+  }).join('');
+
+  const labor = state.orders.reduce((sum, order) => sum + (order.items || []).filter((item) => item.type === 'labor').reduce((subtotal, item) => subtotal + Number(item.qty || 0) * Number(item.unitPrice || 0), 0), 0);
+  const parts = revenue - labor;
+  document.getElementById('analyticsRevenueBreakdown').innerHTML = `<div class="breakdown-value"><strong>${money(revenue)}</strong><span>100% del valor registrado</span></div><div class="breakdown-track"><b style="width:${revenue ? (labor / revenue) * 100 : 0}%"></b></div><div class="breakdown-legend"><span><i class="legend-labor"></i>Mano de obra <strong>${money(labor)}</strong></span><span><i class="legend-parts"></i>Repuestos <strong>${money(parts)}</strong></span></div>`;
+  document.getElementById('analyticsPeopleSummary').innerHTML = `<div><span>Clientes registrados</span><strong>${clients}</strong></div><div><span>Vehículos atendidos</span><strong>${vehicles}</strong></div><div><span>Órdenes por cliente</span><strong>${clients ? (totalOrders / clients).toFixed(1) : '0'}</strong></div>`;
+  const lowItems = state.stock.filter((item) => Number(item.quantity || 0) <= 2).sort((a, b) => Number(a.quantity) - Number(b.quantity)).slice(0, 5);
+  document.getElementById('analyticsStockAlerts').innerHTML = lowItems.length ? lowItems.map((item) => `<div><span>${escapeHtml(item.part || 'Producto sin nombre')}</span><strong class="stock-warning">${item.quantity} un.</strong></div>`).join('') : '<p class="analytics-empty">No hay productos con stock crítico.</p>';
+  const itemTotals = {};
+  state.orders.forEach((order) => (order.items || []).forEach((item) => { const name = item.description || 'Sin descripción'; itemTotals[name] = (itemTotals[name] || 0) + Number(item.qty || 0) * Number(item.unitPrice || 0); }));
+  const topItems = Object.entries(itemTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  document.getElementById('analyticsTopItems').innerHTML = topItems.length ? topItems.map(([name, value], index) => `<div><span class="ranking-number">${index + 1}</span><span>${escapeHtml(name)}</span><strong>${money(value)}</strong></div>`).join('') : '<p class="analytics-empty">Todavía no hay servicios ni repuestos registrados.</p>';
+  document.getElementById('analyticsRevenue').textContent = money(revenue);
+  document.getElementById('analyticsAverage').textContent = `Promedio por orden: ${money(average)}`;
+  document.getElementById('analyticsOpenOrders').textContent = openOrders;
+  document.getElementById('analyticsOpenRate').textContent = `${totalOrders ? Math.round((openOrders / totalOrders) * 100) : 0}% del total`;
+  document.getElementById('analyticsFinishedOrders').textContent = completedOrders;
+  document.getElementById('analyticsCompletionRate').textContent = `${totalOrders ? Math.round((completedOrders / totalOrders) * 100) : 0}% del total`;
+  document.getElementById('analyticsStockValue').textContent = money(stockValue);
+  document.getElementById('analyticsLowStock').textContent = `${lowStock} productos con poco stock`;
+  document.getElementById('analyticsOrderCount').textContent = `${totalOrders} ${totalOrders === 1 ? 'orden' : 'órdenes'}`;
+  document.getElementById('analyticsItemsCount').textContent = `${Object.keys(itemTotals).length} conceptos`;
+  document.getElementById('analyticsUpdated').textContent = `Actualizado ${new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' }).format(new Date())}`;
+}
+
 function renderView(viewName) {
   if (state.currentView === 'stock' && viewName !== 'stock') {
     clearStockFilters();
@@ -1130,7 +1082,7 @@ function renderView(viewName) {
   if (title) {
     const labels = {
       orders: 'Órdenes',
-      agenda: 'Agenda',
+      analytics: 'Análisis',
       stock: 'Stock',
       clients: 'Clientes',
       vehicles: 'Vehículos'
@@ -1148,11 +1100,11 @@ function renderView(viewName) {
 
   const summaryBar = document.getElementById('summaryBar');
   if (summaryBar) {
-    const hideSummaryBar = ['agenda', 'stock', 'clients', 'vehicles'].includes(viewName);
+    const hideSummaryBar = ['analytics', 'stock', 'clients', 'vehicles'].includes(viewName);
     summaryBar.style.display = hideSummaryBar ? 'none' : 'grid';
   }
 
-  const views = ['orders', 'agenda', 'stock', 'clients', 'vehicles'];
+  const views = ['orders', 'analytics', 'stock', 'clients', 'vehicles'];
   views.forEach((view) => {
     const panel = document.getElementById(`${view}View`);
     const button = document.querySelector(`.nav-btn[data-view="${view}"]`);
@@ -1166,211 +1118,7 @@ function renderView(viewName) {
       button.classList.toggle('active', view === viewName);
     }
   });
-
-  if (viewName === 'agenda') {
-    renderAgenda();
-  }
-}
-
-function renderAgenda() {
-  const agendaGrid = document.getElementById('agendaGrid');
-  const weekLabel = document.getElementById('agendaWeekLabel');
-
-  if (!agendaGrid || !weekLabel) return;
-
-  const slots = getAgendaSlots();
-  const weekDates = getWeekDates(state.agendaWeekStart);
-  const startDate = weekDates[0];
-  const endDate = weekDates[weekDates.length - 1];
-  const visibleRange = `${formatDisplayDate(startDate)} – ${formatDisplayDate(endDate)}`;
-  weekLabel.textContent = `Semana del ${visibleRange}`;
-
-  const renderDayColumn = (date) => {
-    const key = formatDateKey(date);
-    const appointments = state.appointments.filter((appointment) => appointment.date === key);
-    const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'short' }).format(date);
-    const dayNumber = new Intl.DateTimeFormat('es-ES', { day: 'numeric' }).format(date);
-    const isToday = key === formatDateKey(new Date());
-
-    const slotMarkup = slots.map((slot) => `
-      <button
-        type="button"
-        class="agenda-slot"
-        data-date="${key}"
-        data-time="${slot.value}"
-        aria-label="Agendar turno el ${formatLongDate(date)} a las ${slot.value}"
-      ></button>
-    `).join('');
-
-    const appointmentMarkup = appointments.map((appointment) => {
-      const startMinutes = timeToMinutes(appointment.time);
-      const startOffsetMinutes = Math.max(0, startMinutes - 8 * 60);
-      const top = (startOffsetMinutes / 15) * 24 + 4;
-      const height = Math.max((Number(appointment.duration || 60) / 15) * 24 - 6, 24);
-      const typeConfig = APPOINTMENT_TYPES[appointment.type] || APPOINTMENT_TYPES.servicio;
-
-      return `
-        <button
-          type="button"
-          class="appointment-block"
-          data-appointment-id="${appointment.id}"
-          data-type="${appointment.type}"
-          style="top: ${top}px; height: ${height}px; background: ${typeConfig.soft}; border-color: ${typeConfig.color}; color: ${typeConfig.color};"
-          title="${appointment.client} · ${appointment.vehicle}"
-        >
-          <strong>${appointment.client || 'Sin cliente'}</strong>
-          <small>${appointment.vehicle || 'Sin vehículo'}</small>
-          <small>${appointment.time} · ${APPOINTMENT_TYPES[appointment.type]?.label || 'Servicio'}</small>
-        </button>
-      `;
-    }).join('');
-
-    return `
-      <div class="agenda-day-column ${isToday ? 'today' : ''}" data-date="${key}">
-        <div class="agenda-header-cell ${isToday ? 'today' : ''}">
-          <strong>${dayName}</strong>
-          <span>${dayNumber}</span>
-        </div>
-        ${slotMarkup}
-        ${appointmentMarkup}
-      </div>
-    `;
-  };
-
-  agendaGrid.innerHTML = `
-    <div class="agenda-time-column">
-      <div class="agenda-header-cell"></div>
-      ${slots.map((slot) => `<div class="agenda-time-slot">${slot.label}</div>`).join('')}
-    </div>
-    ${weekDates.map(renderDayColumn).join('')}
-  `;
-}
-
-function fillAppointmentForm(appointment = null) {
-  const defaultDate = appointment?.date || formatDateKey(state.agendaWeekStart);
-  const defaultTime = appointment?.time || '09:00';
-
-  document.getElementById('appointmentId').value = appointment?.id || '';
-  document.getElementById('appointmentDate').value = defaultDate;
-  document.getElementById('appointmentType').value = appointment?.type || 'servicio';
-  document.getElementById('appointmentTime').value = defaultTime;
-  document.getElementById('appointmentDuration').value = String(appointment?.duration || 60);
-  document.getElementById('appointmentClient').value = appointment?.client || '';
-  document.getElementById('appointmentVehicle').value = appointment?.vehicle || '';
-  document.getElementById('appointmentNotes').value = appointment?.notes || '';
-}
-
-function openAppointmentModal(appointmentId = null, date = null, time = null) {
-  const appointment = appointmentId ? state.appointments.find((entry) => entry.id === appointmentId) || null : null;
-  const modal = document.getElementById('appointmentModal');
-
-  if (appointment) {
-    fillAppointmentForm(appointment);
-    document.getElementById('appointmentModalTitle').textContent = 'Editar turno';
-  } else {
-    const presetDate = date || formatDateKey(new Date());
-    const presetTime = time || '09:00';
-    document.getElementById('appointmentModalTitle').textContent = 'Nuevo turno';
-    document.getElementById('appointmentId').value = '';
-    document.getElementById('appointmentDate').value = presetDate;
-    document.getElementById('appointmentType').value = 'servicio';
-    document.getElementById('appointmentTime').value = presetTime;
-    document.getElementById('appointmentDuration').value = '60';
-    document.getElementById('appointmentClient').value = '';
-    document.getElementById('appointmentVehicle').value = '';
-    document.getElementById('appointmentNotes').value = '';
-  }
-
-  modal.classList.remove('hidden');
-  modal.setAttribute('aria-hidden', 'false');
-  document.getElementById('appointmentClient').focus();
-}
-
-function closeAppointmentModal() {
-  const modal = document.getElementById('appointmentModal');
-  modal.classList.add('hidden');
-  modal.setAttribute('aria-hidden', 'true');
-  document.getElementById('appointmentForm').reset();
-  document.getElementById('appointmentId').value = '';
-}
-
-function saveAppointment(event) {
-  event.preventDefault();
-
-  const payload = normalizeAppointment({
-    id: document.getElementById('appointmentId').value || generateId(),
-    date: document.getElementById('appointmentDate').value,
-    time: document.getElementById('appointmentTime').value,
-    duration: Number(document.getElementById('appointmentDuration').value || 60),
-    type: document.getElementById('appointmentType').value,
-    client: document.getElementById('appointmentClient').value.trim(),
-    vehicle: document.getElementById('appointmentVehicle').value.trim(),
-    notes: document.getElementById('appointmentNotes').value.trim()
-  });
-
-  if (!payload.date || !payload.time || !payload.client || !payload.vehicle) {
-    alert('Completa cliente, vehículo, fecha y hora para guardar el turno.');
-    return;
-  }
-
-  const index = state.appointments.findIndex((entry) => entry.id === payload.id);
-  if (index >= 0) {
-    state.appointments[index] = payload;
-  } else {
-    state.appointments.push(payload);
-  }
-
-  saveAppointments();
-  renderAgenda();
-  closeAppointmentModal();
-}
-
-function deleteAppointment(appointmentId) {
-  const appointment = state.appointments.find((entry) => entry.id === appointmentId);
-  if (!appointment) return;
-
-  if (window.confirm(`¿Eliminar el turno de ${appointment.client} (${appointment.time})?`)) {
-    state.appointments = state.appointments.filter((entry) => entry.id !== appointmentId);
-    saveAppointments();
-    renderAgenda();
-  }
-}
-
-function handleAgendaClick(event) {
-  const appointmentBlock = event.target.closest('.appointment-block');
-  if (appointmentBlock) {
-    const appointmentId = appointmentBlock.dataset.appointmentId;
-    openAppointmentModal(appointmentId);
-    return;
-  }
-
-  const slot = event.target.closest('.agenda-slot');
-  if (slot) {
-    openAppointmentModal(null, slot.dataset.date, slot.dataset.time);
-    return;
-  }
-
-  const weekButton = event.target.closest('[data-week-change]');
-  if (weekButton) {
-    const direction = Number(weekButton.dataset.weekChange === 'next' ? 1 : -1);
-    state.agendaWeekStart = addDays(state.agendaWeekStart, direction * 7);
-    renderAgenda();
-  }
-}
-
-function handleAgendaContextMenu(event) {
-  const block = event.target.closest('.appointment-block');
-  if (!block) return;
-  event.preventDefault();
-  deleteAppointment(block.dataset.appointmentId);
-}
-
-function handleAppointmentFormButton(event) {
-  const button = event.target.closest('[data-week-change]');
-  if (!button) return;
-  const direction = button.dataset.weekChange === 'next' ? 1 : -1;
-  state.agendaWeekStart = addDays(state.agendaWeekStart, direction * 7);
-  renderAgenda();
+  if (viewName === 'analytics') renderAnalytics();
 }
 
 function handleStockSubmit(event) {
@@ -1398,6 +1146,7 @@ function handleStockSubmit(event) {
 
   saveStock();
   renderStockTable();
+  renderAnalytics();
   resetStockForm();
   document.getElementById('stockCode').focus();
 }
@@ -1433,6 +1182,7 @@ function handleStockDelete(event) {
   state.stock = state.stock.filter((item) => item.id !== id);
   saveStock();
   renderStockTable();
+  renderAnalytics();
 }
 
 function handleStockEdit(event) {
@@ -1566,19 +1316,6 @@ function bindEvents() {
     openModalForOrder();
   });
 
-  document.getElementById('newAppointmentBtn').addEventListener('click', () => {
-    openAppointmentModal();
-  });
-
-  document.getElementById('closeAppointmentModalBtn').addEventListener('click', closeAppointmentModal);
-  document.getElementById('cancelAppointmentBtn').addEventListener('click', closeAppointmentModal);
-  document.getElementById('appointmentForm').addEventListener('submit', saveAppointment);
-  document.getElementById('agendaGrid').addEventListener('click', handleAgendaClick);
-  document.getElementById('agendaGrid').addEventListener('contextmenu', handleAgendaContextMenu);
-  document.querySelectorAll('[data-week-change]').forEach((button) => {
-    button.addEventListener('click', handleAppointmentFormButton);
-  });
-
   document.getElementById('vehicleSearch').addEventListener('input', applyLiveAutocomplete);
   document.getElementById('clientSearch').addEventListener('input', applyLiveAutocomplete);
 
@@ -1662,7 +1399,6 @@ function bindEvents() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeModal();
-      closeAppointmentModal();
       closeStockQuickAdd();
     }
   });
@@ -1676,13 +1412,13 @@ function bindEvents() {
 }
 
 function init() {
+  localStorage.removeItem('taller_agenda_v1');
   bindThemePicker();
   renderView('orders');
   renderOrders();
   renderStockTable();
   renderClientsTable();
   renderVehiclesTable();
-  renderAgenda();
   bindEvents();
   resetForm();
 }
